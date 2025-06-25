@@ -10,5 +10,9 @@ The scripts provided in this repository are offered "as is" for educational and 
 - Use of these scripts is entirely at your own risk.
 - Always ensure you have proper authorization and comply with all relevant policies and laws before running any automation or configuration scripts.
 - Never hardcode or expose sensitive credentials in shared or public repositories.
+- ⚠️ Always:
+    Test in a non-production (lab) environment first
+    Review all scripts and understand their impact
+    Adjust to fit your specific environment and API versions
 
 By using these scripts, you acknowledge that you have read this disclaimer, accept full responsibility for their use, and release the author(s) from any liability.
