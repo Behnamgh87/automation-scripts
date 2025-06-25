@@ -2,6 +2,7 @@ import os
 import csv
 
 # Prompt the user for the folder path
+# It is recommended to save this script in the folder containing the CSV files.
 folder = input("Enter the path to the folder containing CSV files (leave blank for current directory): ").strip()
 if not folder:
     folder = os.getcwd()
