@@ -4,6 +4,7 @@ from datetime import datetime
 import getpass
 import csv
 
+ 
 # Disable SSL warnings
 try:
     import urllib3
@@ -26,55 +27,38 @@ def get_api_key(panorama_host, username, password):
         print(f"Error connecting to Panorama: {e}")
         return None
 
-def main():
-    print("=== Palo Alto Panorama Policy Exporter ===\n")
-    print("Please enter your Panorama credentials.")
-    panorama_host = input("Enter Panorama IP: ").strip()
-    print("You will be asked for your username and password.")
+def main(panorama_host, api_key):
+    # Hardcoded device group list (fill this out with your device groups)
+    # Device group is case-sensitive.
+    device_groups = [
+        #Example USA, EU, Asia
+    ]
+    device_groups = sorted(device_groups, key=lambda x: x.lower())
 
-    # Credential check loop
-    max_attempts = 3
-    for attempt in range(1, max_attempts + 1):
-        username = input("Enter username: ").strip()
-        print("Please enter your password. (Input will be hidden)")
-        password = getpass.getpass("Enter password: ")
-        api_key = get_api_key(panorama_host, username, password)
-        if api_key:
-            break
-        else:
-            print(f"Login failed. Check credentials. Attempt {attempt} of {max_attempts}.")
-    else:
-        print("Too many failed login attempts. Exiting.")
+    if not device_groups:
+        print("Device group list is empty. Please edit the script and add your device groups to the 'device_groups' list.")
         sys.exit(1)
 
-    # Only ask for device group and policy type after successful login
-    device_group = prompt_with_default(
-        "Enter device group to export (or leave blank for all)", "all"
-    )
-    policy_type = prompt_with_default(
-        "Which policy type do you want to export? (enabled/disabled/both)", "all"
-    ).lower()
-    if policy_type not in {"enabled", "disabled", "all"}:
-        print("Invalid policy type. Using default: all.")
-        policy_type = "all"
+    print("\nAvailable Device Groups:")
+    for idx, dg in enumerate(device_groups, 1):
+        print(f"  {idx}. {dg}")
+    print(f"  {len(device_groups)+1}. ALL (all listed device groups)")
 
-    # Get device groups if needed
-    if device_group == "all":
-        dg_url = f"https://{panorama_host}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key={api_key}"
-        r = requests.get(dg_url, verify=False)
-        dgs = []
-        import xml.etree.ElementTree as ET
-        try:
-            root = ET.fromstring(r.text)
-            for entry in root.findall('.//entry'):
-                dg_name = entry.attrib.get('name')
-                if dg_name:
-                    dgs.append(dg_name)
-        except Exception as e:
-            print(f"Failed to parse device groups: {e}")
-            sys.exit(1)
+    selection = input("Select device group(s) by number (comma-separated, or enter {0} for ALL): ".format(len(device_groups)+1)).strip()
+    if not selection:
+        print("No selection made. Exiting.")
+        sys.exit(1)
+
+    selected_indices = [s.strip() for s in selection.split(',') if s.strip().isdigit()]
+    selected_indices = [int(s) for s in selected_indices if 1 <= int(s) <= len(device_groups)+1]
+    if not selected_indices:
+        print("Invalid selection. Exiting.")
+        sys.exit(1)
+
+    if len(device_groups)+1 in selected_indices:
+        dgs = device_groups
     else:
-        dgs = [device_group]
+        dgs = [device_groups[i-1] for i in selected_indices]
 
     # Prepare CSV file
     now = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -97,10 +81,6 @@ def main():
                 for rule in rules:
                     disabled_elem = rule.find('disabled')
                     enabled = not (disabled_elem is not None and (disabled_elem.text or '').strip().lower() == 'yes')
-                    if policy_type == 'enabled' and not enabled:
-                        continue
-                    if policy_type == 'disabled' and enabled:
-                        continue
                     rule_name = rule.attrib.get('name', '')
                     source = ','.join([src.text for src in rule.findall('source/member') if src.text is not None])
                     destination = ','.join([dst.text for dst in rule.findall('destination/member') if dst.text is not None])
@@ -122,4 +102,29 @@ def main():
     print(f"\nExport complete. Policies saved to {filename}")
 
 if __name__ == "__main__":
-    main() 
+    print("=== Palo Alto Panorama Policy Exporter ===\n")
+    print("Please enter your Panorama credentials.")
+    panorama_host = input("Enter Panorama IP: ").strip()
+    print("You will be asked for your username and password.")
+
+    # Credential check loop
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        username = input("Enter username: ").strip()
+        print("Please enter your password. (Input will be hidden)")
+        password = getpass.getpass("Enter password: ")
+        api_key = get_api_key(panorama_host, username, password)
+        if api_key:
+            break
+        else:
+            print(f"Login failed. Check credentials. Attempt {attempt} of {max_attempts}.")
+    else:
+        print("Too many failed login attempts. Exiting.")
+        sys.exit(1)
+
+    while True:
+        main(panorama_host, api_key)
+        again = input("\nDo you want to run the script again (device group selection and export)? (y/n): ").strip().lower()
+        if again != 'y':
+            print("Exiting.")
+            break 
