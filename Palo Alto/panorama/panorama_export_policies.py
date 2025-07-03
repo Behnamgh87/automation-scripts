@@ -31,7 +31,7 @@ def main(panorama_host, api_key):
     # Hardcoded device group list (fill this out with your device groups)
     # Device group is case-sensitive.
     device_groups = [
-        #Example USA, EU, Asia
+        #Example "USA", "EU", "Asia"
     ]
     device_groups = sorted(device_groups, key=lambda x: x.lower())
 
