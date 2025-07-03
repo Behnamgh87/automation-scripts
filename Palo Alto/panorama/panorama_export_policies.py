@@ -4,6 +4,7 @@ from datetime import datetime
 import getpass
 import csv
 
+ 
 # Disable SSL warnings
 try:
     import urllib3
@@ -27,80 +28,81 @@ def get_api_key(panorama_host, username, password):
         return None
 
 def main(panorama_host, api_key):
-<<<<<<< Updated upstream
     # Hardcoded device group list (fill this out with your device groups)
     # Device group is case-sensitive.
     device_groups = [
         #Example "USA", "EU", "Asia"
-=======
-    # Hardcoded template list (edit this with your template names)
-    templates = [
-        'Template1', 'Template2', 'Template3', 'Shared'
->>>>>>> Stashed changes
     ]
-    templates = sorted(templates, key=lambda x: x.lower())
+    device_groups = sorted(device_groups, key=lambda x: x.lower())
 
-    if not templates:
-        print("Template list is empty. Please edit the script and add your templates to the 'templates' list.")
+    if not device_groups:
+        print("Device group list is empty. Please edit the script and add your device groups to the 'device_groups' list.")
         sys.exit(1)
 
-    print("\nAvailable Templates:")
-    for idx, tpl in enumerate(templates, 1):
-        print(f"  {idx}. {tpl}")
-    print(f"  {len(templates)+1}. ALL (all listed templates)")
+    print("\nAvailable Device Groups:")
+    for idx, dg in enumerate(device_groups, 1):
+        print(f"  {idx}. {dg}")
+    print(f"  {len(device_groups)+1}. ALL (all listed device groups)")
 
-    selection = input("Select template(s) by number (comma-separated, or enter {0} for ALL): ".format(len(templates)+1)).strip()
+    selection = input("Select device group(s) by number (comma-separated, or enter {0} for ALL): ".format(len(device_groups)+1)).strip()
     if not selection:
         print("No selection made. Exiting.")
         sys.exit(1)
 
     selected_indices = [s.strip() for s in selection.split(',') if s.strip().isdigit()]
-    selected_indices = [int(s) for s in selected_indices if 1 <= int(s) <= len(templates)+1]
+    selected_indices = [int(s) for s in selected_indices if 1 <= int(s) <= len(device_groups)+1]
     if not selected_indices:
         print("Invalid selection. Exiting.")
         sys.exit(1)
 
-    if len(templates)+1 in selected_indices:
-        tpls = templates
+    if len(device_groups)+1 in selected_indices:
+        dgs = device_groups
     else:
-        tpls = [templates[i-1] for i in selected_indices]
+        dgs = [device_groups[i-1] for i in selected_indices]
 
     # Prepare CSV file
     now = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"panorama_export_zones_from_templates_{now}.csv"
+    filename = f"panorama_export_policies_{now}.csv"
     fieldnames = [
-        'template', 'zone_name', 'zone_type', 'interfaces', 'enable_user_id'
+        'device_group', 'rule_name', 'source', 'destination', 'application', 'service', 'action', 'enabled'
     ]
     with open(filename, 'w', encoding='utf-8', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        for tpl in tpls:
-            print(f"Exporting zones for template: {tpl}")
-            xpath = f"/config/devices/entry/template/entry[@name='{tpl}']/config/devices/entry/network/zone"
+        for dg in dgs:
+            print(f"Exporting policies for device group: {dg}")
+            xpath = f"/config/devices/entry/device-group/entry[@name='{dg}']/pre-rulebase/security/rules"
             url = f"https://{panorama_host}/api/?type=config&action=get&xpath={xpath}&key={api_key}"
             r = requests.get(url, verify=False)
             import xml.etree.ElementTree as ET
             try:
                 root = ET.fromstring(r.text)
-                zones = root.findall('.//entry')
-                for zone in zones:
-                    zone_name = zone.attrib.get('name', '')
-                    zone_type = zone.findtext('network/type', '') or zone.findtext('type', '')
-                    interfaces = ','.join([iface.text for iface in zone.findall('network/interface/member')] + [iface.text for iface in zone.findall('interface/member')] if iface.text is not None)
-                    enable_user_id = zone.findtext('enable-user-identification', '')
+                rules = root.findall('.//entry')
+                for rule in rules:
+                    disabled_elem = rule.find('disabled')
+                    enabled = not (disabled_elem is not None and (disabled_elem.text or '').strip().lower() == 'yes')
+                    rule_name = rule.attrib.get('name', '')
+                    source = ','.join([src.text for src in rule.findall('source/member') if src.text is not None])
+                    destination = ','.join([dst.text for dst in rule.findall('destination/member') if dst.text is not None])
+                    application = ','.join([app.text for app in rule.findall('application/member') if app.text is not None])
+                    service = ','.join([svc.text for svc in rule.findall('service/member') if svc.text is not None])
+                    action = rule.findtext('action', '')
                     writer.writerow({
-                        'template': tpl,
-                        'zone_name': zone_name,
-                        'zone_type': zone_type,
-                        'interfaces': interfaces,
-                        'enable_user_id': enable_user_id
+                        'device_group': dg,
+                        'rule_name': rule_name,
+                        'source': source,
+                        'destination': destination,
+                        'application': application,
+                        'service': service,
+                        'action': action,
+                        'enabled': 'yes' if enabled else 'no'
                     })
             except Exception as e:
-                print(f"Failed to parse zones for {tpl}: {e}")
-    print(f"\nExport complete. Zones saved to {filename}")
+                print(f"Failed to parse policies for {dg}: {e}")
+    print(f"\nExport complete. Policies saved to {filename}")
 
 if __name__ == "__main__":
-    print("=== Palo Alto Panorama Zone Exporter (Templates) ===\n")
+    print("=== Palo Alto Panorama Policy Exporter ===\n")
     print("Please enter your Panorama credentials.")
     panorama_host = input("Enter Panorama IP: ").strip()
     print("You will be asked for your username and password.")
@@ -122,7 +124,7 @@ if __name__ == "__main__":
 
     while True:
         main(panorama_host, api_key)
-        again = input("\nDo you want to run the script again (template selection and export)? (y/n): ").strip().lower()
+        again = input("\nDo you want to run the script again (device group selection and export)? (y/n): ").strip().lower()
         if again != 'y':
             print("Exiting.")
             break 
